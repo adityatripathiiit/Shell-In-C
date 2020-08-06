@@ -3,6 +3,7 @@
 #include <string.h>
 #include <unistd.h>
 #include <sys/stat.h>
+#include <dirent.h>
 
 #define MAXSIZE 1100
 #define ARGMAX 10
@@ -10,6 +11,7 @@
 #define GREEN "\x1b[92m"
 #define BLUE "\x1b[94m"
 #define RED "\x1b[41m"
+
 
 void clear (); 
 void initMessage();
@@ -20,10 +22,13 @@ void mkdirFunction();
 void exitFunction();
 void rmFunction(); 
 void lsFunction(); 
+void printContent();
+void cpFunction();
 
 char cwd[MAXSIZE];
 char* argval[ARGMAX]; // our local argc, argv
-int argcount = 0,isBackground = 0;
+int argcount = 0;
+int isBackground = 0;
 char* input; 
 char* input_copy;
 int exitFlag = 0; 
@@ -54,9 +59,9 @@ int main (){
         // else if(strcmp(argval[0],"mv")==0 && !isBackground){
         //     mvFunction();
         // }
-        // else if(strcmp(argval[0],"cp")==0 && !isBackground){
-        //     cpFunction();
-        // }
+        else if(strcmp(argval[0],"cp")==0 && !isBackground){
+            cpFunction(argval[1], argval[2]);
+        }
         else if(strcmp(argval[0],"cd")==0 && !isBackground){            
             cdFunction(argval[1]);
         }
@@ -83,9 +88,7 @@ int main (){
 
 }
 
-
     
-
 void clear(){
 
  // Method 1  : https://stackoverflow.com/questions/2347770/how-do-you-clear-the-console-screen-in-c
@@ -165,15 +168,85 @@ void getInput()
     free(input);
 }
 
-void lsFunction(char* folderName){
-    if(folderName) printf("SSS \n");
-    else printf("Salsa \n");
+
+// Print the contents of the directory
+void printContent(struct dirent* name)
+{
+    // regular file type
+    if(name->d_type == DT_REG) printf("%s%s    ",BLUE, name->d_name);
+
+    // a directory type
+    else if(name->d_type == DT_DIR) printf("%s%s/    ",GREEN, name->d_name);
+
+    // unknown file type
+    else printf("%s%s    ",BLUE, name->d_name );                             
 }
+
+
+
+void lsFunction(char* folderName){
+    int i=0;
+    struct dirent **items;
+    int n ; // number of items in the list +2 because of the 2 null byte string terminator entries 
+            // items[0]->d_name == ".\0" and items[1]->d_name == "..\0"
+
+    if(*folderName == '\0') n = scandir(".", &items, 0, alphasort); // alphasort will sort alphabatically, 
+                                                                    // otherwise files would be in the order they were created
+    else n = scandir(folderName, &items, 0, alphasort);
+
+    if (n >= 0){
+        printf("%s--- Total %d objects in this directory\n",BLUE,n-2);
+        
+        for(i = 2; i < n; i++ ){
+            printContent(items[i]);
+            if(i%7==0) printf("\n");
+        }
+        printf("\n");
+    }
+    else{
+        perror ("--- Error in ls ");
+    }
+}
+
+// function to copy one file to anther
+void cpFunction(char* file1, char* file2){
+    if(argcount >2 && strlen(file1) > 0 && strlen(file2) > 0){
+        FILE *f1, *f2;  // defining file pointers 
+        f1 = fopen(file1, "r"); // opening file1 in read mode
+        if(f1 == NULL){
+            perror("Error while copying: "); 
+            return ; 
+        }
+        f2 = fopen(file2,"w+"); 
+        // checking if the file is opened/created correctly
+        if(f2 == NULL){
+            perror("Error while copying: "); 
+            fclose(f1);
+            return;
+        }
+        // Checking if read and write access is there for the files 
+        if( access(file1,R_OK)!= 0 ||access(file2,W_OK)!=0 ){
+            perror("Error while copying: ");  
+            return ;
+        }
+
+        char wfile ;
+        while((wfile = getc(f1))!= EOF){
+            putc(wfile,f2); 
+        }
+        fclose(f1);
+        fclose(f2); 
+
+    }
+    else printf("Error: cannot copy insufficient parameters :\n");
+}
+
+
 
 void cdFunction(char * newPath){    
     int result = chdir(newPath);
     if(result == 0) getPath(cwd,0);
-    else perror(" Error: Can't change directory"); 
+    else perror("Error: Can't change directory"); 
 }
 
 
