@@ -11,6 +11,7 @@
 #define GREEN "\x1b[92m"
 #define BLUE "\x1b[94m"
 #define RED "\x1b[41m"
+#define RED_TEXT "\x1b[31m"
 
 
 void clear (); 
@@ -28,6 +29,9 @@ void mvFunction();
 void catFunction(); 
 void touchFunction(); 
 void chmodFunction(); 
+void grepFunction(); 
+
+
 
 char cwd[MAXSIZE];
 char* argval[ARGMAX]; // our local argc, argv
@@ -54,9 +58,13 @@ int main (){
         else if(strcmp(argval[0],"ls")==0 && !isBackground){
             lsFunction(argval[1]);
         }
-        // else if(strcmp(argval[0],"grep")==0 && !isBackground){
-        //     grepFunction();
-        // }
+        else if(strcmp(argval[0],"grep")==0 && !isBackground){
+            for(int i= 2; i<ARGMAX; i++){
+                if( i == 2 &&*argval[i] == '\0' && *argval[1] != '\0' ) grepFunction(argval[1], argval[i]) ;
+                if( *argval[i] != '\0' && *argval[1] != '\0' ) grepFunction(argval[1], argval[i]);
+                else break ; 
+            }
+        }
         else if(strcmp(argval[0],"cat")==0 && !isBackground){
             for(int i= 1; i<ARGMAX; i++){
                 if( *argval[i] != '\0' )catFunction(argval[i]);
@@ -255,6 +263,45 @@ void cpFunction(char* file1, char* file2){
     }
     else printf("Error: cannot copy insufficient parameters \n");
 }
+
+
+void grepFunction(char* pattern, char* file1){
+    if(argcount >1 && strlen(file1) > 0){
+        FILE *f1; 
+        f1 = fopen(file1, "r+");
+        if(f1 == NULL){
+            perror("grep: Error while opening File 1"); 
+            return ; 
+        }
+
+        if( access(file1,R_OK)!= 0 ||access(file1,F_OK)!=0 ){
+            perror("grep: Error while accessing files ");  
+            return ;
+        }
+
+        char *line = NULL;
+        size_t len = 0;
+        ssize_t read;
+
+        while ((read = getline(&line, &len, f1)) != -1) {
+            if(strstr(line,pattern) != NULL) printf("%s", line); 
+        }
+        printf("\n");
+        fclose(f1);
+    }
+    else {
+        char *line = NULL;
+        size_t len = 0;
+        ssize_t read;
+        printf("%s Please enter the lines to be matched : \n%s ", BLUE,WHITE );
+        while ((read = getline(&line, &len, stdin)) != -1) {
+            if(strstr(line,pattern) != NULL) printf("%s %s %s ",GREEN, line, WHITE); 
+            else printf("%s Match not found, press ctrl+c to exit or continue entering lines %s \n ", RED_TEXT, WHITE); 
+        }
+        printf("\n");
+    }
+}
+
 
 void catFunction(char* file1){
     if(argcount >1 && strlen(file1) > 0){
