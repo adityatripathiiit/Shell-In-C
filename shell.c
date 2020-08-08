@@ -24,6 +24,10 @@ void rmFunction();
 void lsFunction(); 
 void printContent();
 void cpFunction();
+void mvFunction(); 
+void catFunction(); 
+void touchFunction(); 
+void chmodFunction(); 
 
 char cwd[MAXSIZE];
 char* argval[ARGMAX]; // our local argc, argv
@@ -53,12 +57,16 @@ int main (){
         // else if(strcmp(argval[0],"grep")==0 && !isBackground){
         //     grepFunction();
         // }
-        // else if(strcmp(argval[0],"cat")==0 && !isBackground){
-        //     catFunction();
-        // }
-        // else if(strcmp(argval[0],"mv")==0 && !isBackground){
-        //     mvFunction();
-        // }
+        else if(strcmp(argval[0],"cat")==0 && !isBackground){
+            for(int i= 1; i<ARGMAX; i++){
+                if( *argval[i] != '\0' )catFunction(argval[i]);
+                else break ; 
+            }
+            
+        }
+        else if(strcmp(argval[0],"mv")==0 && !isBackground){
+            mvFunction(argval[1], argval[2]);
+        }
         else if(strcmp(argval[0],"cp")==0 && !isBackground){
             cpFunction(argval[1], argval[2]);
         }
@@ -72,17 +80,22 @@ int main (){
         else if(strcmp(argval[0],"rm")==0 && !isBackground){
             rmFunction(argval[1]);
         }
-        // else if(strcmp(argval[0],"chmod")==0 && !isBackground){
-        //     chmodFunction();
-        // }
+        else if(strcmp(argval[0],"chmod")==0 && !isBackground){
+            for(int i= 2; i<ARGMAX; i++){
+                if( *argval[i] != '\0' )chmodFunction(argval[1], argval[i]);
+                else break ; 
+            }
+            
+        }
         else if(strcmp(argval[0],"mkdir")==0 && !isBackground){
             mkdirFunction(argval[1]);
         }
-        // else if(strcmp(argval[0],"touch")==0 && !isBackground){
-        //     touchFunction();
-        // }
-
-        
+        else if(strcmp(argval[0],"touch")==0 && !isBackground){
+            for(int i= 1; i<ARGMAX; i++){
+                if( *argval[i] != '\0' )touchFunction(argval[i]);
+                else break ; 
+            }
+        }
 
     }
 
@@ -212,21 +225,23 @@ void lsFunction(char* folderName){
 void cpFunction(char* file1, char* file2){
     if(argcount >2 && strlen(file1) > 0 && strlen(file2) > 0){
         FILE *f1, *f2;  // defining file pointers 
-        f1 = fopen(file1, "r"); // opening file1 in read mode
+        f1 = fopen(file1, "r+"); // opening file1 in read mode
+                                 // Using r+ lets us differntiate 
+                                //  if we are performing copying on a folder or a file 
         if(f1 == NULL){
-            perror("Error while copying: "); 
+            perror("Error while copying File 1"); 
             return ; 
         }
         f2 = fopen(file2,"w+"); 
         // checking if the file is opened/created correctly
         if(f2 == NULL){
-            perror("Error while copying: "); 
+            perror("Error while copying to File 2 "); 
             fclose(f1);
             return;
         }
         // Checking if read and write access is there for the files 
         if( access(file1,R_OK)!= 0 ||access(file2,W_OK)!=0 ){
-            perror("Error while copying: ");  
+            perror("Error while accessing files ");  
             return ;
         }
 
@@ -238,7 +253,82 @@ void cpFunction(char* file1, char* file2){
         fclose(f2); 
 
     }
-    else printf("Error: cannot copy insufficient parameters :\n");
+    else printf("Error: cannot copy insufficient parameters \n");
+}
+
+void catFunction(char* file1){
+    if(argcount >1 && strlen(file1) > 0){
+        FILE *f1; 
+        f1 = fopen(file1, "r+");
+        if(f1 == NULL){
+            perror("Error while opening File 1"); 
+            return ; 
+        }
+
+        if( access(file1,R_OK)!= 0 ||access(file1,F_OK)!=0 ){
+            perror("Error while accessing files ");  
+            return ;
+        }
+
+        char rfile ;
+        while((rfile = getc(f1))!= EOF){
+            printf("%c", rfile); 
+        }
+        printf("\n");
+        fclose(f1);
+    }
+    else printf("Error: cannot open file insufficient parameters\n") ;
+}
+
+
+void touchFunction(char* file1){
+    if(argcount >1 && strlen(file1) > 0){
+        FILE *f1; 
+
+        // creating or updating access time of a file using append mode
+        f1 = fopen(file1, "a");
+        if(f1 == NULL){
+            perror("Error while creating File 1"); 
+            return ; 
+        }
+
+        if( access(file1,R_OK)!= 0 ||access(file1,F_OK)!=0 ){
+            perror("Error while accessing files ");  
+            return ;
+        }
+
+        fclose(f1);
+    }
+    else printf("Error: cannot create file insufficient parameters\n") ;
+}
+
+
+void chmodFunction(char* mode, char* fileFolder){
+    int temp = atoi(mode); 
+    int unit = temp%10; temp = temp/10; 
+    int tens = temp%10; temp = temp/10; 
+    int hundred = temp%10; temp = temp/10; 
+    if((atoi(mode)>777 || atoi(mode) < 0 || unit>7 || tens>7|| hundred >7)) {
+        printf("chmod: Invalid mode value %d \n", atoi(mode)) ; 
+        return ; 
+    }    
+    int m = strtol(mode,0,8); 
+    
+    char newPath[MAXSIZE]; 
+    strcpy(newPath,cwd);
+    strcat(newPath,"/");
+    strcat(newPath, fileFolder);
+    int result = chmod(newPath,m);
+    if(result<0) perror("unable to chmod") ; 
+    else printf("%s Successfully changed permissions for %s %s \n", GREEN,fileFolder, WHITE);
+}
+
+void mvFunction(char* file1, char* newPath){
+    
+    int result = chdir(newPath); 
+    if(result == 0) getPath(cwd,0);
+    else perror("Error: Can't change directory"); 
+
 }
 
 
