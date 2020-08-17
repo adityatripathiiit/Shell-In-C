@@ -4,6 +4,8 @@
 #include <unistd.h>
 #include <sys/stat.h>
 #include <dirent.h>
+#include <sys/wait.h>
+
 
 #define MAXSIZE 1100
 #define ARGMAX 10
@@ -30,11 +32,11 @@ void catFunction();
 void touchFunction(); 
 void chmodFunction(); 
 void grepFunction(); 
-
+void inbuiltFunction(); 
 
 
 char cwd[MAXSIZE];
-char* argval[ARGMAX]; // our local argc, argv
+char* argval[ARGMAX]; // local argc, argv
 int argcount = 0;
 int isBackground = 0;
 char* input; 
@@ -103,6 +105,10 @@ int main (){
                 if( *argval[i] != '\0' )touchFunction(argval[i]);
                 else break ; 
             }
+        }
+
+        else if ( *argval[0]!= '\0') {
+            inbuiltFunction(); 
         }
 
     }
@@ -399,6 +405,29 @@ void rmFunction(char* folderName){
     else perror(" Error: Cannot delete directory ");
 }
 
+
+
+void inbuiltFunction(){
+    int rc = fork();
+    if(rc<0) {
+        fprintf(stderr, "failed to create child process");
+        exit(1); 
+    }
+    else if (rc == 0 ){
+        // child process
+        (argval[argcount-1]) = NULL;  // As the argument array must be NULL terminated for execvp
+    
+        if (execvp(argval[0],argval) <0){
+            fprintf(stderr, "%s : No such file or command \n", argval[0]);
+            exit(1); 
+        } 
+
+    }
+    else {
+        // parent should wait for the child process to get over and then continue the original path
+        int wc = wait(NULL); 
+    }
+}
 
 // function to initiate an exit from the shell
 void exitFunction(){
