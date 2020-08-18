@@ -42,25 +42,36 @@ int isBackground = 0;
 char* input; 
 char* input_copy;
 int exitFlag = 0; 
+int rc ;
 
-int main (){
-    clear();
-    initMessage(7);
-    getPath(cwd,0);
-    while(exitFlag != 1){
-        isBackground = 0 ; 
+/*Stop processes if running in terminal(a.out), close terminal if only Ctrl+C*/
+void stopSignal()
+{
 
-        printf("%s%s%s $ ", GREEN,cwd,WHITE);
-        getInput();
+    if(rc!=0)
+    {
+        int temp = rc;
+        kill(rc, SIGINT);
+        rc = 0;
 
-        // strcmp return 0 if strings/characters are a match
+    }
+}
+
+
+int selector(){
+        int selectorFlag = 0 ;
+        
         if(strcmp(argval[0],"exit")==0){
-            exitFunction();
-        }
+                selectorFlag = 1;
+                exitFunction();
+            }
+        
         else if(strcmp(argval[0],"ls")==0 && !isBackground){
+            selectorFlag = 1;
             lsFunction(argval[1]);
         }
         else if(strcmp(argval[0],"grep")==0 && !isBackground){
+            selectorFlag = 1;
             for(int i= 2; i<ARGMAX; i++){
                 if( i == 2 &&*argval[i] == '\0' && *argval[1] != '\0' ) grepFunction(argval[1], argval[i]) ;
                 if( *argval[i] != '\0' && *argval[1] != '\0' ) grepFunction(argval[1], argval[i]);
@@ -68,12 +79,14 @@ int main (){
             }
         }
         else if(strcmp(argval[0],"cat")==0 && !isBackground){
+            selectorFlag = 1;
             for(int i= 1; i<ARGMAX; i++){
                 if( *argval[i] != '\0' )catFunction(argval[i]);
                 else break ; 
             }        
         }
         else if(strcmp(argval[0],"mv")==0 && !isBackground){
+            selectorFlag = 1;
             mvFunction(argval[1], argval[2]);
         }
         else if(strcmp(argval[0],"cp")==0 && !isBackground){
@@ -84,13 +97,16 @@ int main (){
         }
 
         else if(strcmp(argval[0],"pwd")==0 && !isBackground){
+            selectorFlag = 1;
             getPath(cwd,1);
         }
         else if(strcmp(argval[0],"rm")==0 && !isBackground){
+            selectorFlag = 1;
             if(strcmp(argval[1], "-r") ==0) rmFunction(argval[2],argval[1]);
             else rmFunction(argval[1],"");
         }
         else if(strcmp(argval[0],"chmod")==0 && !isBackground){
+            selectorFlag = 1;
             for(int i= 2; i<ARGMAX; i++){
                 if( *argval[i] != '\0' )chmodFunction(argval[1], argval[i]);
                 else break ; 
@@ -98,16 +114,34 @@ int main (){
             
         }
         else if(strcmp(argval[0],"mkdir")==0 && !isBackground){
+            selectorFlag = 1;
             mkdirFunction(argval[1]);
         }
         else if(strcmp(argval[0],"touch")==0 && !isBackground){
+            selectorFlag = 1;
             for(int i= 1; i<ARGMAX; i++){
                 if( *argval[i] != '\0' )touchFunction(argval[i]);
                 else break ; 
             }
         }
 
-        else if ( *argval[0]!= '\0') {
+        return selectorFlag; 
+}
+
+int main (){
+    signal(SIGINT,stopSignal);
+    clear();
+    initMessage(7);
+    getPath(cwd,0);
+    while(exitFlag != 1){
+        
+        isBackground = 0 ; 
+
+        printf("%s%s%s $ ", GREEN,cwd,WHITE);
+        getInput();
+        // strcmp return 0 if strings/characters are a match
+        int selectorFlag = selector(); 
+        if(selectorFlag == 0 && *argval[0]!= '\0') {
             inbuiltFunction(); 
         }
 
@@ -187,7 +221,7 @@ void getInput()
         }
         else argcount++;  // increasing the count of the index which store the ith argument
         if(strcmp(argval[argcount-1],"&")==0)
-        {
+        {   
             isBackground = 1; //run in in Background
             return;  // return to the caller
         }
@@ -216,7 +250,7 @@ void lsFunction(char* folderName){
     struct dirent **items;
     int n ; // number of items in the list +2 because of the 2 null byte string terminator entries 
             // items[0]->d_name == ".\0" and items[1]->d_name == "..\0"
-
+    
     if(*folderName == '\0') n = scandir(".", &items, 0, alphasort); // alphasort will sort alphabatically, 
                                                                     // otherwise files would be in the order they were created
     else n = scandir(folderName, &items, 0, alphasort);
@@ -456,7 +490,7 @@ int rmFunction(char* fileFolderName,char* flag){
 
 
 void inbuiltFunction(){
-    int rc = fork();
+    rc = fork();
     if(rc<0) {
         fprintf(stderr, "failed to create child process");
         exit(1); 
@@ -464,8 +498,18 @@ void inbuiltFunction(){
     else if (rc == 0 ){
         // child process
         (argval[argcount-1]) = NULL;  // As the argument array must be NULL terminated for execvp
-    
-        if (execvp(argval[0],argval) <0){
+        if(isBackground == 1){
+            isBackground = 0 ; 
+            int selectorFlag = selector(); 
+            if(selectorFlag == 0) {
+                if (execvp(argval[0],argval) <0){
+                    fprintf(stderr, "%s : No such file or command \n", argval[0]);
+                    exit(1); 
+                } 
+            }
+            exit(1); 
+        }
+        else if (execvp(argval[0],argval) <0){
             fprintf(stderr, "%s : No such file or command \n", argval[0]);
             exit(1); 
         } 
@@ -473,8 +517,12 @@ void inbuiltFunction(){
     }
     else {
         // parent should wait for the child process to get over and then continue the original path
-        int wc = wait(NULL); 
+        int status; 
+        if(isBackground == 0) waitpid(rc,&status, 0);
+        else printf("Process running in background, with PID = %d\n",rc);
+        
     }
+    
 }
 
 // function to initiate an exit from the shell
