@@ -1,3 +1,4 @@
+// Including header files 
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -5,7 +6,9 @@
 #include <sys/stat.h>
 #include <dirent.h>
 #include <sys/wait.h>
-
+#include<fcntl.h>
+#include <signal.h>
+//  Defining constants 
 
 #define MAXSIZE 1100
 #define ARGMAX 10
@@ -15,15 +18,17 @@
 #define RED "\x1b[41m"
 #define RED_TEXT "\x1b[31m"
 
+// Function definations  
 
 void clear (); 
 void initMessage();
 void getPath();
+int  selector(); 
 void getInput(); 
 void cdFunction();
 void mkdirFunction();
 void exitFunction();
-int rmFunction(); 
+int  rmFunction(); 
 void lsFunction(); 
 void printContent();
 void cpFunction();
@@ -33,114 +38,41 @@ void touchFunction();
 void chmodFunction(); 
 void grepFunction(); 
 void inbuiltFunction(); 
+void killChild();
 
+// Variable definations 
 
-char cwd[MAXSIZE];
-char* argval[ARGMAX]; // local argc, argv
-int argcount = 0;
-int isBackground = 0;
-char* input; 
-char* input_copy;
-int exitFlag = 0; 
-int rc ;
+char cwd[MAXSIZE]; // variable to store the current path
+char* argval[ARGMAX]; // argument values/vector  array 
+int argcount = 0;     // argument count variable 
+int isBackground = 0; // isBackground variable to maintain the state of program
+char* input;          // Store the input from user 
+int exitFlag = 0;     // exit flag, to exit from the terminal 
+int rc ;              // To store rc value of child and terminate if required 
+int running = 1;     // variable to handle while loop exits
 
-/*Stop processes if running in terminal(a.out), close terminal if only Ctrl+C*/
-void stopSignal()
-{
-
-    if(rc!=0)
-    {
-        int temp = rc;
-        kill(rc, SIGINT);
-        rc = 0;
-
-    }
-}
-
-
-int selector(){
-        int selectorFlag = 0 ;
-        
-        if(strcmp(argval[0],"exit")==0){
-                selectorFlag = 1;
-                exitFunction();
-            }
-        
-        else if(strcmp(argval[0],"ls")==0 && !isBackground){
-            selectorFlag = 1;
-            lsFunction(argval[1]);
-        }
-        else if(strcmp(argval[0],"grep")==0 && !isBackground){
-            selectorFlag = 1;
-            for(int i= 2; i<ARGMAX; i++){
-                if( i == 2 &&*argval[i] == '\0' && *argval[1] != '\0' ) grepFunction(argval[1], argval[i]) ;
-                if( *argval[i] != '\0' && *argval[1] != '\0' ) grepFunction(argval[1], argval[i]);
-                else break ; 
-            }
-        }
-        else if(strcmp(argval[0],"cat")==0 && !isBackground){
-            selectorFlag = 1;
-            for(int i= 1; i<ARGMAX; i++){
-                if( *argval[i] != '\0' )catFunction(argval[i]);
-                else break ; 
-            }        
-        }
-        else if(strcmp(argval[0],"mv")==0 && !isBackground){
-            selectorFlag = 1;
-            mvFunction(argval[1], argval[2]);
-        }
-        else if(strcmp(argval[0],"cp")==0 && !isBackground){
-            cpFunction(argval[1], argval[2]);
-        }
-        else if(strcmp(argval[0],"cd")==0 && !isBackground){            
-            cdFunction(argval[1]);
-        }
-
-        else if(strcmp(argval[0],"pwd")==0 && !isBackground){
-            selectorFlag = 1;
-            getPath(cwd,1);
-        }
-        else if(strcmp(argval[0],"rm")==0 && !isBackground){
-            selectorFlag = 1;
-            if(strcmp(argval[1], "-r") ==0) rmFunction(argval[2],argval[1]);
-            else rmFunction(argval[1],"");
-        }
-        else if(strcmp(argval[0],"chmod")==0 && !isBackground){
-            selectorFlag = 1;
-            for(int i= 2; i<ARGMAX; i++){
-                if( *argval[i] != '\0' )chmodFunction(argval[1], argval[i]);
-                else break ; 
-            }
-            
-        }
-        else if(strcmp(argval[0],"mkdir")==0 && !isBackground){
-            selectorFlag = 1;
-            mkdirFunction(argval[1]);
-        }
-        else if(strcmp(argval[0],"touch")==0 && !isBackground){
-            selectorFlag = 1;
-            for(int i= 1; i<ARGMAX; i++){
-                if( *argval[i] != '\0' )touchFunction(argval[i]);
-                else break ; 
-            }
-        }
-
-        return selectorFlag; 
-}
 
 int main (){
-    signal(SIGINT,stopSignal);
-    clear();
+    // checking for signal Interrupt and calling killChild function if true
+    signal(SIGINT,killChild); 
+    // calling clear function to clear the terminal 
+    clear(); 
+    // Printing initial message on the terminal 
     initMessage(7);
+
+    // getting the current path
     getPath(cwd,0);
+
+    // while we do not exit the terminal
     while(exitFlag != 1){
         
         isBackground = 0 ; 
 
-        printf("%s%s%s $ ", GREEN,cwd,WHITE);
-        getInput();
-        // strcmp return 0 if strings/characters are a match
+        
+        printf("%s%s%s $ ", GREEN,cwd,WHITE); // printing the current path in the terminal
+        getInput(); // function to get the input from the user 
         int selectorFlag = selector(); 
+        // If enterted command not any command in the selector
         if(selectorFlag == 0 && *argval[0]!= '\0') {
             inbuiltFunction(); 
         }
@@ -149,7 +81,19 @@ int main (){
 
 }
 
-    
+
+// Kill any process if its not the parent, i.e the shell itself by sending signal interupt 
+// Send signal interupt using ctrl+c
+void killChild(){
+    if(rc!=0){
+        kill(rc, SIGINT);
+        rc = 0;
+    }
+}
+void handleWhile(){
+    running = 0; 
+}
+
 void clear(){
 
  // Method 1  : https://stackoverflow.com/questions/2347770/how-do-you-clear-the-console-screen-in-c
@@ -205,10 +149,6 @@ void getInput()
     size_t size = 0;
     getline(&input,&size,stdin);
 
-    // Copy into another string if we need to run special executables
-
-    input_copy = (char *)malloc(strlen(input) * sizeof(char));
-    strncpy(input_copy,input,strlen(input));
     argcount = 0;
     isBackground = 0;
 
@@ -230,6 +170,84 @@ void getInput()
 }
 
 
+int selector(){
+        int selectorFlag = 0 ;
+
+        // strcmp return 0 if strings/characters are a match
+        if(strcmp(argval[0],"exit")==0){
+                selectorFlag = 1;
+                exitFunction();
+            }
+        else if(strcmp(argval[0],"ls")==0 && !isBackground){
+            selectorFlag = 1;
+            lsFunction(argval[1]);
+        }
+        else if(strcmp(argval[0],"grep")==0 && !isBackground){
+            selectorFlag = 1;
+            if(*argval[1] == '\0') return 1;
+            for(int i= 2; i<ARGMAX; i++){
+                if(strcmp(argval[1], "\"\"")==0 ||strcmp(argval[1], "\"")==0 ){
+                    printf("Nothing is matched \n");
+                    return 1 ; 
+                }
+                else if( i == 2 &&*argval[i] == '\0' && *argval[1] != '\0' ) grepFunction(argval[1], argval[i]) ;
+                else if( *argval[i] != '\0' && *argval[1] != '\0' ) grepFunction(argval[1], argval[i]);
+                else break ; 
+            }
+        }
+        else if(strcmp(argval[0],"cat")==0 && !isBackground){
+            selectorFlag = 1;
+            for(int i= 1; i<ARGMAX; i++){
+                if( *argval[i] != '\0' )catFunction(argval[i]);
+                else break ; 
+            }        
+        }
+        else if(strcmp(argval[0],"mv")==0 && !isBackground){
+            selectorFlag = 1;
+            mvFunction(argval[1], argval[2]);
+        }
+        else if(strcmp(argval[0],"cp")==0 && !isBackground){
+            selectorFlag = 1;
+            cpFunction(argval[1], argval[2]);
+        }
+        else if(strcmp(argval[0],"cd")==0 && !isBackground){            
+            selectorFlag = 1;
+            cdFunction(argval[1]);
+        }
+
+        else if(strcmp(argval[0],"pwd")==0 && !isBackground){
+            selectorFlag = 1;
+            getPath(cwd,1);
+        }
+        else if(strcmp(argval[0],"rm")==0 && !isBackground){
+            selectorFlag = 1;
+            if(strcmp(argval[1], "-r") ==0) rmFunction(argval[2],argval[1]);
+            else rmFunction(argval[1],"");
+        }
+        else if(strcmp(argval[0],"chmod")==0 && !isBackground){
+            selectorFlag = 1;
+            for(int i= 2; i<ARGMAX; i++){
+                if( *argval[i] != '\0' )chmodFunction(argval[1], argval[i]);
+                else break ; 
+            }
+            
+        }
+        else if(strcmp(argval[0],"mkdir")==0 && !isBackground){
+            selectorFlag = 1;
+            mkdirFunction(argval[1]);
+        }
+        else if(strcmp(argval[0],"touch")==0 && !isBackground){
+            selectorFlag = 1;
+            for(int i= 1; i<ARGMAX; i++){
+                if( *argval[i] != '\0' )touchFunction(argval[i]);
+                else break ; 
+            }
+        }
+
+        return selectorFlag; 
+}
+
+
 // Print the contents of the directory
 void printContent(struct dirent* name)
 {
@@ -246,13 +264,15 @@ void printContent(struct dirent* name)
 
 
 void lsFunction(char* folderName){
+    
     int i=0;
     struct dirent **items;
     int n ; // number of items in the list +2 because of the 2 null byte string terminator entries 
             // items[0]->d_name == ".\0" and items[1]->d_name == "..\0"
     
-    if(*folderName == '\0') n = scandir(".", &items, 0, alphasort); // alphasort will sort alphabatically, 
-                                                                    // otherwise files would be in the order they were created
+    // If no arguments are given scan the content of the current directory
+    if(folderName == NULL || *folderName == '\0') n = scandir(".", &items, 0, alphasort); // alphasort will sort alphabatically, 
+                                                                                          // otherwise files would be in the order they were created
     else n = scandir(folderName, &items, 0, alphasort);
 
     if (n >= 0){
@@ -333,8 +353,11 @@ void grepFunction(char* pattern, char* file1){
         char *line = NULL;
         size_t len = 0;
         ssize_t read;
+        running = 1;
+        signal(SIGINT, handleWhile); 
         printf("%s Please enter the lines to be matched : \n%s ", BLUE,WHITE );
-        while ((read = getline(&line, &len, stdin)) != -1) {
+        while ((read = getline(&line, &len, stdin)) != -1 ) {
+            if(running == 0) return ; 
             if(strstr(line,pattern) != NULL) printf("%s %s %s ",GREEN, line, WHITE); 
             else printf("%s Match not found, press ctrl+c to exit or continue entering lines %s \n ", RED_TEXT, WHITE); 
         }
@@ -379,7 +402,8 @@ void touchFunction(char* file1){
             return ; 
         }
 
-        if( access(file1,R_OK)!= 0 ||access(file1,F_OK)!=0 ){
+        // Checking if the file is accessible for read
+        if( access(file1,R_OK)!= 0 ||access(file1,F_OK)!=0 ){   
             perror("Error while accessing files ");  
             return ;
         }
@@ -399,30 +423,20 @@ void chmodFunction(char* mode, char* fileFolder){
         printf("chmod: Invalid mode value %d \n", atoi(mode)) ; 
         return ; 
     }    
-    int m = strtol(mode,0,8); 
+    int m = strtol(mode,0,8);  // Convert the mode  value to ocatal 
     
-    char newPath[MAXSIZE]; 
-    strcpy(newPath,cwd);
+    char newPath[MAXSIZE];  // newPath variable to store the complete supplied path
+    strcpy(newPath,cwd);    // concatention operation 
     strcat(newPath,"/");
     strcat(newPath, fileFolder);
-    int result = chmod(newPath,m);
+    int result = chmod(newPath,m); // set the path value 
     if(result<0) perror("unable to chmod") ; 
     else printf("%s Successfully changed permissions for %s %s \n", GREEN,fileFolder, WHITE);
 }
 
-void mvFunction(char* file1, char* newPath){
-    
-    int result = chdir(newPath); 
-    if(result == 0) getPath(cwd,0);
-    else perror("Error: Can't change directory"); 
-
-}
-
-
-
 void cdFunction(char * newPath){    
-    int result = chdir(newPath);
-    if(result == 0) getPath(cwd,0);
+    int result = chdir(newPath); // call change directory to the path supplied 
+    if(result == 0) getPath(cwd,0); // If successful, update the cwd variable with the new path
     else perror("Error: Can't change directory"); 
 }
 
@@ -432,6 +446,28 @@ void mkdirFunction(char* folderName){
     if(answer !=-1) printf(" successfully created directory %s %s %s \n", BLUE,folderName ,WHITE);
     else perror(" Error: Cannot make directory ");
 }
+
+
+void mvFunction(char* file1, char* newPath){
+    
+    // int result = chdir(newPath); 
+    // if(result == 0) getPath(cwd,0);
+    // else perror("Error: Can't change directory"); 
+    // int fd1,fd2;
+    // int n,count=0;
+    // fd1=open(file1,O_RDONLY);
+    // fd2=creat(newPath,S_IWUSR);-
+    
+    // unlink(file1);
+    
+    if(argcount >2 && strlen(file1) > 0 ){    
+    rename(file1,newPath);
+    }
+    else printf("Error: cannot copy insufficient parameters \n");
+}
+
+
+
 
 // some parts referenced from 
 // https://stackoverflow.com/questions/2256945/removing-a-non-empty-directory-programmatically-in-c-or-c/2256974#2256974
@@ -482,7 +518,7 @@ int rmFunction(char* fileFolderName,char* flag){
         return result; 
     }
     else{
-        if(remove(fileFolderName) ==0) printf(" successfully deleted directory %s %s %s \n", BLUE,fileFolderName ,WHITE);
+        if(remove(fileFolderName) ==0) printf(" successfully deleted file/directory %s %s %s \n", BLUE,fileFolderName ,WHITE);
         else perror(" Error: Cannot delete file/directory ");    
     }
     
