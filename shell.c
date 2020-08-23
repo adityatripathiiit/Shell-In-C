@@ -8,6 +8,8 @@
 #include <sys/wait.h>
 #include<fcntl.h>
 #include <signal.h>
+#include <sys/types.h>
+#include <libgen.h>
 //  Defining constants 
 
 #define MAXSIZE 1100
@@ -180,7 +182,9 @@ int selector(){
             }
         else if(strcmp(argval[0],"ls")==0 && !isBackground){
             selectorFlag = 1;
-            lsFunction(argval[1]);
+            if(argcount == 2) lsFunction(argval[1]); 
+
+            else for(int i= 1; i<argcount-1; i++) lsFunction(argval[i]);
         }
         else if(strcmp(argval[0],"grep")==0 && !isBackground){
             selectorFlag = 1;
@@ -204,11 +208,13 @@ int selector(){
         }
         else if(strcmp(argval[0],"mv")==0 && !isBackground){
             selectorFlag = 1;
-            mvFunction(argval[1], argval[2]);
+            if(argcount <=3) printf("Error: cannot copy insufficient parameters \n");
+            else for(int i=1; i<argcount-2; i++) mvFunction(argval[i], argval[argcount-2]);
         }
         else if(strcmp(argval[0],"cp")==0 && !isBackground){
             selectorFlag = 1;
-            cpFunction(argval[1], argval[2]);
+            if(argcount <=3) printf("Error: cannot copy insufficient parameters \n");
+            else for(int i=1; i<argcount-2; i++) cpFunction(argval[i], argval[argcount-2]);
         }
         else if(strcmp(argval[0],"cd")==0 && !isBackground){            
             selectorFlag = 1;
@@ -289,9 +295,10 @@ void lsFunction(char* folderName){
     }
 }
 
-// function to copy one file to anther
-void cpFunction(char* file1, char* file2){
-    if(argcount >2 && strlen(file1) > 0 && strlen(file2) > 0){
+// function to copy one file to another
+
+void cpFunctionHelper(char* file1, char* file2){
+    if(argcount >3 && strlen(file1) > 0 && strlen(file2) > 0){
         FILE *f1, *f2;  // defining file pointers 
         f1 = fopen(file1, "r+"); // opening file1 in read mode
                                  // Using r+ lets us differntiate 
@@ -324,6 +331,92 @@ void cpFunction(char* file1, char* file2){
     else printf("Error: cannot copy insufficient parameters \n");
 }
 
+
+void cpFunction(char* file1, char* newPath){
+    if(argcount >3 && strlen(file1) > 0 && strlen(newPath) > 0){
+        struct stat statusFile;
+        struct stat statusPath; 
+        int resultFile = stat(file1,&statusFile);
+        int resultPath = stat(newPath,&statusPath);
+
+        
+        if(resultFile !=0 ){ 
+            perror("Error: Cannot perform stat on the file ");
+            return ; 
+        }
+        if((statusFile.st_mode & S_IFMT ) == S_IFREG) {
+            if(resultPath !=0 || (resultPath == 0 && ((statusPath.st_mode&S_IFMT )== S_IFREG))) 
+                cpFunctionHelper(file1,newPath); 
+            else{
+                char temp[MAXSIZE]; 
+                char* fileName = basename(file1); 
+                strcpy(temp,newPath);
+                strcat(temp, "/");
+                strcat(temp, fileName); 
+                cpFunctionHelper(file1,temp); 
+            }
+        }
+        else if((statusFile.st_mode & S_IFMT ) == S_IFDIR){
+            if(resultPath !=0){ 
+                perror("Error: Cant perform cp");
+                return ;
+            }
+            if((statusPath.st_mode&S_IFMT )== S_IFREG){
+                 perror("Error: cant copy a directory to a file") ; 
+                 return ; 
+            }
+            if((statusPath.st_mode&S_IFMT )== S_IFDIR){
+                char oldPath[MAXSIZE] ; 
+                strcpy(oldPath, cwd); 
+                cdFunction(newPath); 
+                char* folderName = basename(file1); 
+
+                int answer = mkdir(folderName, 0777);// all appropriate permissions
+                cdFunction(oldPath); 
+                if(answer !=-1) printf(" successfully created directory %s %s %s \n", BLUE,folderName ,WHITE);
+                else {
+                    perror(" Error: Cannot make directory ");
+                    return; 
+                }
+                
+                char temp[MAXSIZE];
+                strcpy(temp,newPath);
+                strcat(temp, "/");
+                strcat(temp, folderName); 
+                int i=0;
+                struct dirent **items;
+                int n = scandir(file1, &items, 0,alphasort);
+                if (n >= 0){
+                    for(i = 2; i < n; i++ ){
+                        if(items[i]->d_type == DT_REG){
+                            char name1[MAXSIZE];
+                            char name2[MAXSIZE]; 
+                            strcpy(name1, file1); 
+                            strcat(name1, "/");
+                            strcat(name1, items[i]->d_name); 
+
+                            strcpy(name2, temp); 
+                            strcat(name2, "/");
+                            strcat(name2, items[i]->d_name); 
+                            cpFunctionHelper(name1,name2); 
+                        }
+                    }
+                }
+                else{
+                    perror ("Nothing to copy");
+                }
+
+            }
+            else{
+                printf("Error: cant perform cp") ;
+                exit(1); 
+            }
+    }
+
+    }
+    else printf("Error: cannot copy insufficient parameters \n");
+    
+}
 
 void grepFunction(char* pattern, char* file1){
     if(argcount >1 && strlen(file1) > 0){
@@ -450,18 +543,24 @@ void mkdirFunction(char* folderName){
 
 void mvFunction(char* file1, char* newPath){
     
-    // int result = chdir(newPath); 
-    // if(result == 0) getPath(cwd,0);
-    // else perror("Error: Can't change directory"); 
-    // int fd1,fd2;
-    // int n,count=0;
-    // fd1=open(file1,O_RDONLY);
-    // fd2=creat(newPath,S_IWUSR);-
-    
-    // unlink(file1);
-    
-    if(argcount >2 && strlen(file1) > 0 ){    
-    rename(file1,newPath);
+    if(argcount >3 && strlen(file1) > 0 ){    
+        struct stat statusFile;
+        struct stat statusPath; 
+        int resultFile = stat(file1,&statusFile);
+        int resultPath = stat(newPath,&statusPath);
+
+        char* fileName = basename(file1);  
+        char temp[MAXSIZE]; 
+        if(resultFile !=0 ) perror("Error: Cannot perform stat on the file "); 
+        if((statusFile.st_mode&S_IFMT )== S_IFDIR) perror("Error: Cannot perform mv on directory") ;
+        if((statusPath.st_mode&S_IFMT )== S_IFDIR) {
+            strcpy(temp,newPath);
+            strcat(temp, "/");
+            strcat(temp, fileName); 
+            rename(file1,temp);  
+        }
+        else rename(file1,newPath); 
+
     }
     else printf("Error: cannot copy insufficient parameters \n");
 }
@@ -498,7 +597,6 @@ int rmFunction(char* fileFolderName,char* flag){
                 len = pathLength + strlen(items->d_name) + 2; // +2 if a folder, and then there will be "."  and ".."
                 buf = malloc(len); // assign memory to buf variable
 
-                struct stat statbuf;  // defining stat struct variable to store the file properties
                 // just a fancy way to copy the path fileFolderName/files to buf, with maximum number of characters argument
                 snprintf(buf, len, "%s/%s", fileFolderName, items->d_name);
                 
