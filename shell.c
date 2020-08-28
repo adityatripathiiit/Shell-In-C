@@ -10,10 +10,11 @@
 #include <signal.h>
 #include <sys/types.h>
 #include <libgen.h>
+
 //  Defining constants 
 
 #define MAXSIZE 1100
-#define ARGMAX 10
+#define ARGMAX 20
 #define WHITE "\x1B[0m"
 #define GREEN "\x1b[92m"
 #define BLUE "\x1b[94m"
@@ -51,7 +52,7 @@ int isBackground = 0; // isBackground variable to maintain the state of program
 char* input;          // Store the input from user 
 int exitFlag = 0;     // exit flag, to exit from the terminal 
 int rc ;              // To store rc value of child and terminate if required 
-int running = 1;     // variable to handle while loop exits
+int running = 1;      // variable to handle while loop exits upon signals 
 
 
 int main (){
@@ -92,6 +93,8 @@ void killChild(){
         rc = 0;
     }
 }
+
+// function to handle while loop exits on signal 
 void handleWhile(){
     running = 0; 
 }
@@ -136,7 +139,7 @@ void getPath(char* cwd,int flag)
         }
     }
     // using perror function to print error in the console
-    else perror("---- Unable to getcwd() : ");
+    else perror("Unable to getcwd() : ");
 
 }
 
@@ -162,17 +165,22 @@ void getInput()
             free(argval[argcount]);
         }
         else argcount++;  // increasing the count of the index which store the ith argument
-        if(strcmp(argval[argcount-1],"&")==0)
+        if(strcmp(argval[argcount-1],"&")==0) // if the last argument is &
         {   
             isBackground = 1; //run in in Background
             return;  // return to the caller
         }
     }
-    free(input);
+    free(input); // freeing the assigned memory
 }
 
+// Function to compare the input commands 
 
 int selector(){
+
+        // The value of this flag is set to 1, if the entered command 
+        // is from the custom commands that are implemented
+        // If so, then they are executed, otherwise it checks inbuilt binaries
         int selectorFlag = 0 ;
 
         // strcmp return 0 if strings/characters are a match
@@ -286,7 +294,7 @@ void lsFunction(char* folderName){
         
         for(i = 2; i < n; i++ ){
             printContent(items[i]);
-            if(i%7==0) printf("\n");
+            if(i%7==0) printf("\n");   // just insrting new line character at every 7th index to fit the names in the CMD and pretiffy
         }
         printf("\n");
     }
@@ -295,7 +303,7 @@ void lsFunction(char* folderName){
     }
 }
 
-// function to copy one file to another
+// helper function to copy one file to another
 
 void cpFunctionHelper(char* file1, char* file2){
     if(argcount >3 && strlen(file1) > 0 && strlen(file2) > 0){
@@ -331,6 +339,7 @@ void cpFunctionHelper(char* file1, char* file2){
     else printf("Error: cannot copy insufficient parameters \n");
 }
 
+// function to copy one file to another
 
 void cpFunction(char* file1, char* newPath){
     if(argcount >3 && strlen(file1) > 0 && strlen(newPath) > 0){
