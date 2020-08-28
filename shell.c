@@ -221,8 +221,14 @@ int selector(){
         }
         else if(strcmp(argval[0],"cp")==0 && !isBackground){
             selectorFlag = 1;
+            
             if(argcount <=3) printf("Error: cannot copy insufficient parameters \n");
-            else for(int i=1; i<argcount-2; i++) cpFunction(argval[i], argval[argcount-2]);
+            else if(strcmp(argval[1], "-r") ==0) {
+                for(int i=2; i<argcount-2; i++) cpFunction(argval[i], argval[argcount-2]);
+            }
+            else{
+                for(int i=1; i<argcount-2; i++) cpFunction(argval[i], argval[argcount-2]);
+            }
         }
         else if(strcmp(argval[0],"cd")==0 && !isBackground){            
             selectorFlag = 1;
@@ -294,7 +300,7 @@ void lsFunction(char* folderName){
         
         for(i = 2; i < n; i++ ){
             printContent(items[i]);
-            if(i%7==0) printf("\n");   // just insrting new line character at every 7th index to fit the names in the CMD and pretiffy
+            if(i%7==0) printf("\n");   // just inserting new line character at every 7th index to fit the names in the CMD and pretiffy
         }
         printf("\n");
     }
@@ -330,29 +336,31 @@ void cpFunctionHelper(char* file1, char* file2){
 
         char wfile ;
         while((wfile = getc(f1))!= EOF){
-            putc(wfile,f2); 
+            putc(wfile,f2);   // copying file1 to file2
         }
-        fclose(f1);
-        fclose(f2); 
+        fclose(f1); // closing the file1 
+        fclose(f2); // closing the file2 
 
     }
     else printf("Error: cannot copy insufficient parameters \n");
 }
 
-// function to copy one file to another
+// function to copy one file/directory to another
 
 void cpFunction(char* file1, char* newPath){
     if(argcount >3 && strlen(file1) > 0 && strlen(newPath) > 0){
-        struct stat statusFile;
-        struct stat statusPath; 
-        int resultFile = stat(file1,&statusFile);
+        struct stat statusFile;    // struct to store the stat info about the given file 
+        struct stat statusPath;  
+        int resultFile = stat(file1,&statusFile); 
         int resultPath = stat(newPath,&statusPath);
 
-        
+        // If stat is successfully performed, it returns 0. 
         if(resultFile !=0 ){ 
             perror("Error: Cannot perform stat on the file ");
             return ; 
         }
+        // If the file is a regular file, then there are 2 cases, either the given path is 
+        // an existent directory or the given path is existent or non-existent file
         if((statusFile.st_mode & S_IFMT ) == S_IFREG) {
             if(resultPath !=0 || (resultPath == 0 && ((statusPath.st_mode&S_IFMT )== S_IFREG))) 
                 cpFunctionHelper(file1,newPath); 
@@ -365,26 +373,31 @@ void cpFunction(char* file1, char* newPath){
                 cpFunctionHelper(file1,temp); 
             }
         }
-        else if((statusFile.st_mode & S_IFMT ) == S_IFDIR){
+        else if((statusFile.st_mode & S_IFMT ) == S_IFDIR && strcmp(argval[1],"-r") ==0){
+            // If cannot perform stat on the path
             if(resultPath !=0){ 
                 perror("Error: Cant perform cp");
                 return ;
             }
+            // If the newPath is a file 
             if((statusPath.st_mode&S_IFMT )== S_IFREG){
                  perror("Error: cant copy a directory to a file") ; 
                  return ; 
             }
             if((statusPath.st_mode&S_IFMT )== S_IFDIR){
                 char oldPath[MAXSIZE] ; 
-                strcpy(oldPath, cwd); 
-                cdFunction(newPath); 
-                char* folderName = basename(file1); 
+                strcpy(oldPath, cwd);                // Creating a copy of the current path, so we can switch back 
+                cdFunction(newPath);                 // changing the directory to the newPath
+                char* folderName = basename(file1);  // getting the name of the file
 
                 int answer = mkdir(folderName, 0777);// all appropriate permissions
-                cdFunction(oldPath); 
+                cdFunction(oldPath);                 // Switching back to the original path 
+
+                // If directory doesn't already exists, create the directory, otherwise stop cp command
+                // The stopping of cp can be easily changed, just implementation specific thing. 
                 if(answer !=-1) printf(" successfully created directory %s %s %s \n", BLUE,folderName ,WHITE);
                 else {
-                    perror(" Error: Cannot make directory ");
+                    perror(" Error: Cannot make directory "); 
                     return; 
                 }
                 
@@ -394,10 +407,11 @@ void cpFunction(char* file1, char* newPath){
                 strcat(temp, folderName); 
                 int i=0;
                 struct dirent **items;
-                int n = scandir(file1, &items, 0,alphasort);
+                int n = scandir(file1, &items, 0,alphasort); // Traversing the directory 
                 if (n >= 0){
                     for(i = 2; i < n; i++ ){
-                        if(items[i]->d_type == DT_REG){
+                        //  Copying only the files of a directory 
+                        if(items[i]->d_type == DT_REG){ 
                             char name1[MAXSIZE];
                             char name2[MAXSIZE]; 
                             strcpy(name1, file1); 
@@ -418,9 +432,13 @@ void cpFunction(char* file1, char* newPath){
             }
             else{
                 printf("Error: cant perform cp") ;
-                exit(1); 
+                return ; 
             }
-    }
+        }
+        else {
+            printf("Error: cant perform cp on a directory. Try with -r flag \n") ;
+            return ; 
+        }
 
     }
     else printf("Error: cannot copy insufficient parameters \n");
@@ -428,7 +446,9 @@ void cpFunction(char* file1, char* newPath){
 }
 
 void grepFunction(char* pattern, char* file1){
+    //  If file is provided then perform search on the file
     if(argcount >1 && strlen(file1) > 0){
+        // Opening a file in read mode and checking basic read access 
         FILE *f1; 
         f1 = fopen(file1, "r+");
         if(f1 == NULL){
@@ -444,19 +464,21 @@ void grepFunction(char* pattern, char* file1){
         char *line = NULL;
         size_t len = 0;
         ssize_t read;
-
+        // Using readline to read any arbitrary length of a line in a file, without specifiying size before hand.
+        // Using inbuilt matching algorthm of C. Can use KMP also. 
         while ((read = getline(&line, &len, f1)) != -1) {
             if(strstr(line,pattern) != NULL) printf("%s", line); 
         }
         printf("\n");
         fclose(f1);
     }
+    // else take input from the user and perform search
     else {
         char *line = NULL;
         size_t len = 0;
         ssize_t read;
         running = 1;
-        signal(SIGINT, handleWhile); 
+        signal(SIGINT, handleWhile);  // signal to exit the while loop 
         printf("%s Please enter the lines to be matched : \n%s ", BLUE,WHITE );
         while ((read = getline(&line, &len, stdin)) != -1 ) {
             if(running == 0) return ; 
@@ -470,6 +492,7 @@ void grepFunction(char* pattern, char* file1){
 
 void catFunction(char* file1){
     if(argcount >1 && strlen(file1) > 0){
+        // Opening a file in read mode and checking basic read access 
         FILE *f1; 
         f1 = fopen(file1, "r+");
         if(f1 == NULL){
@@ -483,6 +506,7 @@ void catFunction(char* file1){
         }
 
         char rfile ;
+        // Printing all the contents of a file
         while((rfile = getc(f1))!= EOF){
             printf("%c", rfile); 
         }
@@ -517,10 +541,14 @@ void touchFunction(char* file1){
 
 
 void chmodFunction(char* mode, char* fileFolder){
-    int temp = atoi(mode); 
-    int unit = temp%10; temp = temp/10; 
-    int tens = temp%10; temp = temp/10; 
-    int hundred = temp%10; temp = temp/10; 
+    int temp = atoi(mode); // converting received mode value to int 
+    int unit = temp%10; temp = temp/10;  // finding unit place digit 
+    int tens = temp%10; temp = temp/10;  // finding tens place digit
+    int hundred = temp%10; temp = temp/10;  // finding hundred place digit  
+
+    // If any of this ones, tens or hundred place is not between 0 and 7 (inclusive) 
+    // then its not a valid mode. Also, if the total number is not between 0 and 777 
+    // the mode is invalid
     if((atoi(mode)>777 || atoi(mode) < 0 || unit>7 || tens>7|| hundred >7)) {
         printf("chmod: Invalid mode value %d \n", atoi(mode)) ; 
         return ; 
@@ -553,7 +581,7 @@ void mkdirFunction(char* folderName){
 void mvFunction(char* file1, char* newPath){
     
     if(argcount >3 && strlen(file1) > 0 ){    
-        struct stat statusFile;
+        struct stat statusFile;                
         struct stat statusPath; 
         int resultFile = stat(file1,&statusFile);
         int resultPath = stat(newPath,&statusPath);
@@ -562,6 +590,9 @@ void mvFunction(char* file1, char* newPath){
         char temp[MAXSIZE]; 
         if(resultFile !=0 ) perror("Error: Cannot perform stat on the file "); 
         if((statusFile.st_mode&S_IFMT )== S_IFDIR) perror("Error: Cannot perform mv on directory") ;
+        // There can be 2 cases depending on the newpath 
+        // If the newpath is a not an existing directory, then just use rename C system call to move the files 
+        // else if the given path is a directory, then move the file inside the directory 
         if((statusPath.st_mode&S_IFMT )== S_IFDIR) {
             strcpy(temp,newPath);
             strcat(temp, "/");
@@ -631,8 +662,9 @@ int rmFunction(char* fileFolderName,char* flag){
     
 }
 
-
+// Function to run inbuilt binaries and background processes 
 void inbuiltFunction(){
+    // Creating a child processes 
     rc = fork();
     if(rc<0) {
         fprintf(stderr, "failed to create child process");
@@ -641,9 +673,14 @@ void inbuiltFunction(){
     else if (rc == 0 ){
         // child process
         (argval[argcount-1]) = NULL;  // As the argument array must be NULL terminated for execvp
+        //  If we want to run the process in background
         if(isBackground == 1){
+            // The background process 
             isBackground = 0 ; 
+            // Select the command which was passed 
             int selectorFlag = selector(); 
+            //  If the command that was to be run background is not in the custom commands we implemented
+            // run it using execvp as usual
             if(selectorFlag == 0) {
                 if (execvp(argval[0],argval) <0){
                     fprintf(stderr, "%s : No such file or command \n", argval[0]);
@@ -652,6 +689,7 @@ void inbuiltFunction(){
             }
             exit(1); 
         }
+        // else just run the command using execvp 
         else if (execvp(argval[0],argval) <0){
             fprintf(stderr, "%s : No such file or command \n", argval[0]);
             exit(1); 
@@ -659,8 +697,10 @@ void inbuiltFunction(){
 
     }
     else {
-        // parent should wait for the child process to get over and then continue the original path
+        
         int status; 
+        // parent should wait for the child process to get over and then continue the original path
+        // iff the user does not want to run the process in background. Parent process need not be waiting in this case.
         if(isBackground == 0) waitpid(rc,&status, 0);
         else printf("Process running in background, with PID = %d\n",rc);
         
