@@ -45,8 +45,8 @@ void killChild();
 
 // Variable definations 
 
-char cwd[MAXSIZE]; // variable to store the current path
-char* argval[ARGMAX]; // argument values/vector  array 
+char cwd[MAXSIZE];    // variable to store the current path
+char* argv[ARGMAX];   // argument values/vector  array 
 int argcount = 0;     // argument count variable 
 int isBackground = 0; // isBackground variable to maintain the state of program
 char* input;          // Store the input from user 
@@ -71,12 +71,11 @@ int main (){
         
         isBackground = 0 ; 
 
-        
         printf("%s%s%s $ ", GREEN,cwd,WHITE); // printing the current path in the terminal
         getInput(); // function to get the input from the user 
         int selectorFlag = selector(); 
         // If enterted command not any command in the selector
-        if(selectorFlag == 0 && *argval[0]!= '\0') {
+        if(selectorFlag == 0 && *argv[0]!= '\0') {
             inbuiltFunction(); 
         }
 
@@ -100,12 +99,6 @@ void handleWhile(){
 }
 
 void clear(){
-
- // Method 1  : https://stackoverflow.com/questions/2347770/how-do-you-clear-the-console-screen-in-c
-//   const char *CLEAR_SCREEN_ANSI = "\e[1;1H\e[2J";
-//   write(STDOUT_FILENO, CLEAR_SCREEN_ANSI, 12);
-
-  // Method 2:  Takes more time than the regex method
     system("clear"); 
 }
 
@@ -143,7 +136,7 @@ void getPath(char* cwd,int flag)
 
 }
 
-//  get input containing spaces and tabs and store it in argval 
+//  get input containing spaces and tabs and store it in argv 
 // character array 
 void getInput()
 {
@@ -157,15 +150,15 @@ void getInput()
     argcount = 0;
     isBackground = 0;
 
-    while(argcount < ARGMAX-1 && (argval[argcount] = strsep(&input, " \t\n")) != NULL)
+    while(argcount < ARGMAX-1 && (argv[argcount] = strsep(&input, " \t\n")) != NULL)
     {
         // do not consider "" as a parameter
-        if(sizeof(argval[argcount])==0)
+        if(sizeof(argv[argcount])==0)
         {
-            free(argval[argcount]);
+            free(argv[argcount]);
         }
         else argcount++;  // increasing the count of the index which store the ith argument
-        if(strcmp(argval[argcount-1],"&")==0) // if the last argument is &
+        if(strcmp(argv[argcount-1],"&")==0) // if the last argument is &
         {   
             isBackground = 1; //run in in Background
             return;  // return to the caller
@@ -184,82 +177,85 @@ int selector(){
         int selectorFlag = 0 ;
 
         // strcmp return 0 if strings/characters are a match
-        if(strcmp(argval[0],"exit")==0){
+        if(strcmp(argv[0],"exit")==0){
                 selectorFlag = 1;
                 exitFunction();
             }
-        else if(strcmp(argval[0],"ls")==0 && !isBackground){
+        else if(strcmp(argv[0],"ls")==0 && !isBackground){
             selectorFlag = 1;
-            if(argcount == 2) lsFunction(argval[1]); 
+            if(argcount == 2) lsFunction(argv[1]); 
 
-            else for(int i= 1; i<argcount-1; i++) lsFunction(argval[i]);
+            else for(int i= 1; i<argcount-1; i++) lsFunction(argv[i]);
         }
-        else if(strcmp(argval[0],"grep")==0 && !isBackground){
+        else if(strcmp(argv[0],"grep")==0 && !isBackground){
             selectorFlag = 1;
-            if(*argval[1] == '\0') return 1;
-            for(int i= 2; i<ARGMAX; i++){
-                if(strcmp(argval[1], "\"\"")==0 ||strcmp(argval[1], "\"")==0 ){
-                    printf("Nothing is matched \n");
-                    return 1 ; 
+            if(argcount <3) printf("Error: cannot grep insufficient parameters \n");
+            else {
+                if(*argv[1] == '\0') return 1;
+                for(int i= 2; i<ARGMAX; i++){
+                    if(strcmp(argv[1], "\"\"")==0 ||strcmp(argv[1], "\"")==0 ){
+                        printf("Nothing is matched \n");
+                        return 1 ; 
+                    }
+                    else if( i == 2 &&*argv[i] == '\0' && *argv[1] != '\0' ) grepFunction(argv[1], argv[i]) ;
+                    else if( *argv[i] != '\0' && *argv[1] != '\0' ) grepFunction(argv[1], argv[i]);
+                    else break ; 
                 }
-                else if( i == 2 &&*argval[i] == '\0' && *argval[1] != '\0' ) grepFunction(argval[1], argval[i]) ;
-                else if( *argval[i] != '\0' && *argval[1] != '\0' ) grepFunction(argval[1], argval[i]);
-                else break ; 
             }
         }
-        else if(strcmp(argval[0],"cat")==0 && !isBackground){
+        else if(strcmp(argv[0],"cat")==0 && !isBackground){
             selectorFlag = 1;
             for(int i= 1; i<ARGMAX; i++){
-                if( *argval[i] != '\0' )catFunction(argval[i]);
+                if( *argv[i] != '\0' )catFunction(argv[i]);
                 else break ; 
             }        
         }
-        else if(strcmp(argval[0],"mv")==0 && !isBackground){
+        else if(strcmp(argv[0],"mv")==0 && !isBackground){
             selectorFlag = 1;
             if(argcount <=3) printf("Error: cannot copy insufficient parameters \n");
-            else for(int i=1; i<argcount-2; i++) mvFunction(argval[i], argval[argcount-2]);
+            else for(int i=1; i<argcount-2; i++) mvFunction(argv[i], argv[argcount-2]);
         }
-        else if(strcmp(argval[0],"cp")==0 && !isBackground){
+        else if(strcmp(argv[0],"cp")==0 && !isBackground){
             selectorFlag = 1;
             
             if(argcount <=3) printf("Error: cannot copy insufficient parameters \n");
-            else if(strcmp(argval[1], "-r") ==0) {
-                for(int i=2; i<argcount-2; i++) cpFunction(argval[i], argval[argcount-2]);
+            else if(strcmp(argv[1], "-r") ==0) {
+                for(int i=2; i<argcount-2; i++) cpFunction(argv[i], argv[argcount-2]);
             }
             else{
-                for(int i=1; i<argcount-2; i++) cpFunction(argval[i], argval[argcount-2]);
+                for(int i=1; i<argcount-2; i++) cpFunction(argv[i], argv[argcount-2]);
             }
         }
-        else if(strcmp(argval[0],"cd")==0 && !isBackground){            
+        else if(strcmp(argv[0],"cd")==0 && !isBackground){            
             selectorFlag = 1;
-            cdFunction(argval[1]);
+            cdFunction(argv[1]);
         }
 
-        else if(strcmp(argval[0],"pwd")==0 && !isBackground){
+        else if(strcmp(argv[0],"pwd")==0 && !isBackground){
             selectorFlag = 1;
             getPath(cwd,1);
         }
-        else if(strcmp(argval[0],"rm")==0 && !isBackground){
+        else if(strcmp(argv[0],"rm")==0 && !isBackground){
             selectorFlag = 1;
-            if(strcmp(argval[1], "-r") ==0) rmFunction(argval[2],argval[1]);
-            else rmFunction(argval[1],"");
+            if(strcmp(argv[1], "-r") ==0) rmFunction(argv[2],argv[1]);
+            else rmFunction(argv[1],"");
         }
-        else if(strcmp(argval[0],"chmod")==0 && !isBackground){
+        else if(strcmp(argv[0],"chmod")==0 && !isBackground){
             selectorFlag = 1;
             for(int i= 2; i<ARGMAX; i++){
-                if( *argval[i] != '\0' )chmodFunction(argval[1], argval[i]);
+                if( *argv[i] != '\0' )chmodFunction(argv[1], argv[i]);
                 else break ; 
             }
             
         }
-        else if(strcmp(argval[0],"mkdir")==0 && !isBackground){
+        else if(strcmp(argv[0],"mkdir")==0 && !isBackground){
             selectorFlag = 1;
-            mkdirFunction(argval[1]);
+            mkdirFunction(argv[1]);
         }
-        else if(strcmp(argval[0],"touch")==0 && !isBackground){
+        else if(strcmp(argv[0],"touch")==0 && !isBackground){
             selectorFlag = 1;
             for(int i= 1; i<ARGMAX; i++){
-                if( *argval[i] != '\0' )touchFunction(argval[i]);
+                if( *argv[i] != '\0' )touchFunction(argv[i]);
                 else break ; 
             }
         }
@@ -373,7 +369,7 @@ void cpFunction(char* file1, char* newPath){
                 cpFunctionHelper(file1,temp); 
             }
         }
-        else if((statusFile.st_mode & S_IFMT ) == S_IFDIR && strcmp(argval[1],"-r") ==0){
+        else if((statusFile.st_mode & S_IFMT ) == S_IFDIR && strcmp(argv[1],"-r") ==0){
             // If cannot perform stat on the path
             if(resultPath !=0){ 
                 perror("Error: Cant perform cp");
@@ -464,8 +460,8 @@ void grepFunction(char* pattern, char* file1){
         char *line = NULL;
         size_t len = 0;
         ssize_t read;
-        // Using readline to read any arbitrary length of a line in a file, without specifiying size before hand.
-        // Using inbuilt matching algorthm of C. Can use KMP also. 
+        // Using getline to read any arbitrary length of a line in a file, without specifiying size before hand.
+        // Using inbuilt matching algorthm of C. Can implement KMP also. 
         while ((read = getline(&line, &len, f1)) != -1) {
             if(strstr(line,pattern) != NULL) printf("%s", line); 
         }
@@ -481,7 +477,7 @@ void grepFunction(char* pattern, char* file1){
         signal(SIGINT, handleWhile);  // signal to exit the while loop 
         printf("%s Please enter the lines to be matched : \n%s ", BLUE,WHITE );
         while ((read = getline(&line, &len, stdin)) != -1 ) {
-            if(running == 0) return ; 
+            if(running == 0) break ; 
             if(strstr(line,pattern) != NULL) printf("%s %s %s ",GREEN, line, WHITE); 
             else printf("%s Match not found, press ctrl+c to exit or continue entering lines %s \n ", RED_TEXT, WHITE); 
         }
@@ -672,7 +668,7 @@ void inbuiltFunction(){
     }
     else if (rc == 0 ){
         // child process
-        (argval[argcount-1]) = NULL;  // As the argument array must be NULL terminated for execvp
+        (argv[argcount-1]) = NULL;  // As the argument array must be NULL terminated for execvp
         //  If we want to run the process in background
         if(isBackground == 1){
             // The background process 
@@ -682,16 +678,16 @@ void inbuiltFunction(){
             //  If the command that was to be run background is not in the custom commands we implemented
             // run it using execvp as usual
             if(selectorFlag == 0) {
-                if (execvp(argval[0],argval) <0){
-                    fprintf(stderr, "%s : No such file or command \n", argval[0]);
+                if (execvp(argv[0],argv) <0){
+                    fprintf(stderr, "%s : No such file or command \n", argv[0]);
                     exit(1); 
                 } 
             }
             exit(1); 
         }
         // else just run the command using execvp 
-        else if (execvp(argval[0],argval) <0){
-            fprintf(stderr, "%s : No such file or command \n", argval[0]);
+        else if (execvp(argv[0],argv) <0){
+            fprintf(stderr, "%s : No such file or command \n", argv[0]);
             exit(1); 
         } 
 
