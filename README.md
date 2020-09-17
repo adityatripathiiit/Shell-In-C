@@ -18,7 +18,7 @@
   * Touch 
 * Can run programs in background using & at the end 
 * Coloured interface
-
+* Handling Interrupt signals 
 ## Running the shell
 
 1. `make`
