@@ -1,6 +1,6 @@
 # Shell-In-C
 
-- A basic linux-shell implemented in c. Here are some of the features of the shell. 
+#### A basic linux-shell implemented in c. Here are some of the features of the shell. 
 
 
 * Run inbuilt binaries (like ps, pmap, wget, etc.) with arguments
